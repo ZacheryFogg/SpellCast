@@ -1,13 +1,18 @@
-def convert_to_2d_list(input_str):
-    # Remove the outer brackets and split the string into rows
-    rows = input_str[1:-1].split('],[')
-    
-    # Split each row into elements and strip whitespace
-    list_2d_str = [[element.strip() for element in row.split(',')] for row in rows]
+def map_str_to_2d_list(str) -> list:
+        
+        list_2d = []
+        i = 1
+        row = []
+        for char in str:
+            row.append(char)
+            if i%5 == 0:
+                list_2d.append(row)
+                row = []
+            i+=1
 
-    return list_2d_str
+        return list_2d
 
 # Example usage
-input_str = "[[o,e,v,u,a],[n,o,y,i,u],[w,r,h,e,a],[l,o,i,k,f],[m,h,r,t,f]]"
-output = convert_to_2d_list(input_str)
+input_str = "aoublfriuapcdajroeexsozui"
+output = map_str_to_2d_list(input_str)
 print(output)

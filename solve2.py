@@ -4,7 +4,7 @@ import time
 from multiprocessing import Process, Manager
 
 
-max_depth = 6
+max_depth = 8
 
 # Get valid words
 valid_words = []
@@ -49,8 +49,7 @@ class GridHandler:
     char_values['y'] = 4
     char_values['z'] = 8
 
-
-    def map_str_to_2d_list(self, mat_str) -> list:
+    def map_list_str_to_2d_list(self, mat_str) -> list:
         '''
         Accepts a string that represents a list and returns a 2D list
         '''
@@ -64,6 +63,24 @@ class GridHandler:
 
         # Add boolean representing validity of word 
         return [[element for element in sublist] for sublist in list_2d_str]
+    
+    def map_str_to_2d_list(self, str) -> list:
+        
+        list_2d = []
+        i = 1
+        row = []
+        row_counter = 0
+        doubleLetter = None
+
+        for char in str:
+            if char.isupper(): doubleLetter = (row_counter, ((i-1)%5))
+            row.append(char.lower())
+            if i%5 == 0:
+                list_2d.append(row)
+                row = []
+                row_counter+=1
+            i+=1
+        return list_2d, doubleLetter
 
     def get_valid_adjacent(self, mask, row, col):
         '''
@@ -79,17 +96,20 @@ class GridHandler:
                             valid_adjacent.append((r,c))
         return valid_adjacent
     
-    def get_point_score(self,str):
+    def get_point_score(self,str, mask):
         points = 0
         for char in str:
             points += self.char_values[char]
+        if doubleLetter != None and mask[doubleLetter[0]][doubleLetter[1]] == False: points *=2
+        if len(str) > 5: points+=10
         return points
 
 
 mat_str = sys.argv[1]
 # Create Grid
 handler = GridHandler()
-grid = handler.map_str_to_2d_list(mat_str)
+grid, doubleLetter = handler.map_str_to_2d_list(mat_str)
+# grid = handler.map_list_str_to_2d_list(mat_str)
 
 
  # TODO: Figure out how to incorporate knowledge of double letter, 2x, gems
@@ -97,7 +117,8 @@ grid = handler.map_str_to_2d_list(mat_str)
 def recursive_search(str, mask, depth, found_words, row, col):
     # If current word is a valid scrabble word, add to accumulated list, along with point score
     if str in valid_words and len(str) > 2:
-        found_words.append((str, handler.get_point_score(str)))
+        # if len(str) > 4: print(str, handler.get_point_score(str, mask))
+        found_words.append((str, handler.get_point_score(str, mask)))
     # If new_depth exceeds max_depth, do not recurse any further
     new_depth = depth + 1 
     if new_depth > max_depth:
