@@ -124,7 +124,7 @@ mat_str = sys.argv[1]
 grid, doubleLetter = map_str_to_2d_list(mat_str)
 
 
-def recursive_search(str, mask, found_words, row, col):
+def recursive_search(str, mask, found_words, row, col, max_points):
     '''
     Starting with a string of 1 character, depth first search 
     all valid sequences in the grid up to a maximum sequence length
@@ -133,7 +133,12 @@ def recursive_search(str, mask, found_words, row, col):
     # If current word is a valid scrabble word, add to accumulated list, along with point score
     if str in valid_words and len(str) > 2:
         # if len(str) > 4: print(str, handler.get_point_score(str, mask))
-        found_words.append((str, get_point_score(str, mask)))
+        points = get_point_score(str, mask)
+        found_words.append((str, points))
+        
+        if points > max_points["max"]: 
+            print(f'New Max: {str} - {points} points')
+            max_points["max"] = points
 
     # If new_depth exceeds max_depth, do not recurse any further
     if len(str) >= max_depth: return
@@ -150,19 +155,19 @@ def recursive_search(str, mask, found_words, row, col):
         mask[row][col]= False
 
         # Call recursive search with new string and new_mask
-        recursive_search(str + grid[index[0]][index[1]], mask, found_words, index[0], index[1])
+        recursive_search(str + grid[index[0]][index[1]], mask, found_words, index[0], index[1], max_points)
 
         # Now that we are done exploring this sequence, this char becomes valid
         mask[index[0]][index[1]] = True
         
     return 
 
-def worker(char, mask, row, col, results):
+def worker(char, mask, row, col, results, max_points):
     ''' 
     Worker for each thread to execute
     '''
     found_words = []
-    recursive_search(char, mask, found_words, row, col)
+    recursive_search(char, mask, found_words, row, col, max_points)
     results.append(found_words) 
 
 if __name__ == '__main__':
@@ -173,6 +178,8 @@ if __name__ == '__main__':
 
     with Manager() as manager:
         results = manager.list()
+        max_points = manager.dict() # make a dict so all threads can alter
+        max_points["max"] = 0
 
         # Create search processes, one for each starting character
         for row_idx, row in enumerate(grid):
@@ -180,7 +187,7 @@ if __name__ == '__main__':
                 new_mask = copy.deepcopy(starting_bool_mask)
                 # Make starting letter invalid
                 new_mask[row_idx][col] = False
-                process = Process(target=worker, args=(char, new_mask, row_idx, col, results))
+                process = Process(target=worker, args=(char, new_mask, row_idx, col, results, max_points))
                 processes.append(process)
 
         start = time.time()
