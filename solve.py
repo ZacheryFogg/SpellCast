@@ -5,7 +5,8 @@ from multiprocessing import Process, Manager
 
 
 max_depth = 5
-vowel_thershold = 4
+vowel_thershold = 3
+consonant_threshold = 3 
 
 # Get valid words
 valid_words = []
@@ -113,6 +114,11 @@ vowels = "aeiouy"
 def contains_vowel(str): 
     return any(char in vowels for char in str)
 
+consonants = "bcdfghjklmnpqrtsvwxyz"
+def contains_consonants(str):
+    return any(char in consonants for char in str)
+
+
 # Create Grid as global var
 mat_str = sys.argv[1]
 grid, doubleLetter = map_str_to_2d_list(mat_str)
@@ -134,6 +140,7 @@ def recursive_search(str, mask, found_words, row, col):
 
     # Heuristic to restrict search to plausible words: If str is X long and had no vowels, it is probably not a plausbile word
     if (len(str) == vowel_thershold) and not contains_vowel(str): return
+    if (len(str) == consonant_threshold) and not contains_consonants(str): return
 
     # Recursively call search with all new char combinations of adjacent chars
     for index in get_valid_adjacent(mask, row, col):
