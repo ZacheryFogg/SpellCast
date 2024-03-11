@@ -11,14 +11,37 @@ vowel_thershold = 3
 consonant_threshold = 3 
 point_threshold = 2
 
+# Parse input 
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--threads", help="Number of threads to creat (Max 25)")
+parser.add_argument("--max_length", help="Maximum search depth. Sole determinant of performance")
+parser.add_argument("--puzzle", help="String of length 25 representing board")
+parser.add_argument("--mr_threads", help = "Allows creation of up to 100 threads for Ben")
+parser.add_argument("--vocab_size", help ="Size of vocab to search over: small, large, full")
+
+
+args=parser.parse_args()
+
+vocabs = {
+    "small" : "common_8k",
+    "medium" : "common_15k",
+    "large" : "common_20k",
+    "full" : "scrabble_120k"
+}
+vocab_file = vocabs["medium"]
+if args.vocab_size and args.vocab_size in vocabs.keys(): vocab_file = vocabs[args.vocab_size]
+    
+
 # Get valid words
 valid_words = []
 # with open("scrabble_words.txt", "r") as f:
-with open("normal_valid_words.txt", "r") as f:
+with open(f'vocabs/{vocab_file}.txt', "r") as f:
     word = f.readline()
     while word: 
         valid_words.append(word.strip('\n'))
         word = f.readline()
+
 
 # Char to points mapping
 char_values = {}
@@ -120,16 +143,6 @@ consonants = "bcdfghjklmnpqrtsvwxyz"
 def contains_consonants(str):
     return any(char in consonants for char in str)
 
-
-# Parse input 
-parser = argparse.ArgumentParser()
-
-parser.add_argument("--threads", help="Number of threads to creat (Max 25)")
-parser.add_argument("--max_length", help="Maximum search depth. Sole determinant of performance")
-parser.add_argument("--puzzle", help="String of length 25 representing board")
-parser.add_argument("--mr_threads", help = "Allows creation of up to 100 threads for Ben")
-
-args=parser.parse_args()
 
 # Create Grid as global var
 max_depth = int(args.max_length)
