@@ -5,14 +5,17 @@ import argparse
 import math
 from multiprocessing import Process, Manager
 
-
+# Global words
+long_word_bonus_threshold = 6
 max_depth = 7
 vowel_thershold = 3
 consonant_threshold = 3 
 point_threshold = None
+swap_point_threshold = 5
 num_threads = 2
 puzzle = "abcdefghijklmnopqrstuvwxy"
 do_swap = False
+vocab_file = vocabs["large"]
 
 # Parse input 
 parser = argparse.ArgumentParser()
@@ -32,9 +35,24 @@ vocabs = {
     "large" : "common_20k",
     "full" : "scrabble_120k"
 }
-vocab_file = vocabs["large"]
-if args.vocab_size and args.vocab_size in vocabs.keys(): vocab_file = vocabs[args.vocab_size]
     
+# Map input args to global vars if provided
+if (args.max_length):max_depth = int(args.max_length)
+if (args.threads): num_threads = int(args.threads)
+if (args.puzzle): puzzle = args.puzzle
+if (args.do_swap): do_swap = True if int(args.do_swap) == 1 else False
+if args.vocab_size and args.vocab_size in vocabs.keys(): vocab_file = vocabs[args.vocab_size]
+
+# Validate input
+if len(puzzle) != 25:
+    print(f'Error - Input string length is: {len(puzzle)}. It should be 25')
+    exit()
+
+# Create 2d python list that represents the puzzle
+grid, doubleLetter = map_str_to_2d_list(puzzle)
+
+# To track what letters we have already added to our word, we will use a boolean mask
+starting_bool_mask = [[True for pos in range(len(row))] for row in grid]
 
 # Get valid words
 valid_words = []
@@ -43,7 +61,6 @@ with open(f'vocabs/sorted/{vocab_file}_sorted.txt', "r") as f:
     while word: 
         valid_words.append(word.strip('\n'))
         word = f.readline()
-
 
 # Char to points mapping
 char_values = {}
@@ -73,8 +90,6 @@ char_values['w'] = 5
 char_values['x'] = 7
 char_values['y'] = 4
 char_values['z'] = 8
-
-
 
 def map_list_str_to_2d_list(mat_str) -> list:
     '''
@@ -128,13 +143,16 @@ def get_valid_adjacent(mask, row, col):
 
 def get_point_score(str, contains_double_letter):
     '''
-    Determine the point score of a word
+    Determine the point score of a word. 
+    
+    If length of word is counted as a long word, we add 10 points to score 
+    If word contains a letter that had a double word multiplier, we double word score
     '''
     points = 0
     for char in str:
         points += char_values[char]
     if contains_double_letter: points *=2
-    if len(str) > 5: points+=10
+    if len(str) >= long_word_bonus_threshold: points+=10
     return points
 
 vowels = "aeiouy"
@@ -144,22 +162,6 @@ def contains_vowel(str):
 consonants = "bcdfghjklmnpqrtsvwxyz"
 def contains_consonants(str):
     return any(char in consonants for char in str)
-
-
-# Create Grid as global var
-if (args.max_length):max_depth = int(args.max_length)
-if (args.threads): num_threads = int(args.threads)
-if (args.puzzle): puzzle = args.puzzle
-if (args.do_swap): do_swap = True
-
-# Validate input
-if len(puzzle) != 25:
-    print(f'Error - Input string length is: {len(puzzle)}. It should be 25')
-    exit()
-
-grid, doubleLetter = map_str_to_2d_list(puzzle)
-starting_bool_mask = [[True for pos in range(len(row))] for row in grid]
-
 
 def recursive_search(str, mask, sequences, row, col):
     '''
@@ -191,6 +193,10 @@ def recursive_search(str, mask, sequences, row, col):
     return 
 
 def bin_search_valid_words(target):
+    '''
+    Valid words is a pre-sorted list. Binary search it
+    Return target word if it exists in valid_words, else return None
+    '''
     start = 0
     end = len(valid_words) - 1
     while start <= end:
@@ -204,11 +210,15 @@ def bin_search_valid_words(target):
             return midpoint
 
 def search_worker(sequences, global_valid, global_swaps, max_points):
-
+    '''
+    Function that each thread will run to search over 1 chunk of possible words
+    '''
     found_words = []
     swaps_found = []
     for seq in sequences:
         points = get_point_score(seq[0], seq[1])
+        # If possible points from this word would not yeild a new best word (or close to a new best) we don't need to bother 
+        # evaluating it, since search is costly
         if ((points >= max_points["max"] - point_threshold ) if point_threshold else True) and len(seq[0]) > 2:
             if bin_search_valid_words(seq[0]):
                 found_words.append((seq[0], points))
@@ -222,20 +232,19 @@ def search_worker(sequences, global_valid, global_swaps, max_points):
             for perm in swap_permutations:
                 if bin_search_valid_words(perm["new_word"]):
                     points = get_point_score(perm["new_word"], seq[1])
-                    if (points > max_points["swap_max"]) and points > max_points["max"]:
-                        # print(f'New Swap Possibility Max: {perm["old_word"]} --> {perm["new_word"]} (swap {perm["old_char"]} for {perm["new_char"]})')
+                    if (points > max_points["swap_max"] - swap_point_threshold) and points > max_points["max"]:
                         max_points["swap_max"] = points
                         swaps_found.append((perm, points))
 
+    # Append locally found words to global trackers
     global_valid+=found_words
     global_swaps+=swaps_found
 
 def get_swap_permutations(str):
-    # Swap each letter in word with all 26 other letters
-
-    # What do I want to see in the console: Swap Posibility: glown --> clown (swap g for c)
+    '''
+    Swap each letter in the word with each possible character (26)
+    '''
     new_words = []
-
     for i in range(len(str)):
         for char in char_values.keys():
             word = str[:i] + char + str[i+1:]
@@ -254,7 +263,6 @@ if __name__ == '__main__':
 
     # Obtain all possible sequences on baord 
     global_sequences = []
-
     for row_idx, row in enumerate(grid):
         for col_idx, char in enumerate(row):
             mask = copy.deepcopy(starting_bool_mask)
@@ -263,17 +271,24 @@ if __name__ == '__main__':
 
     
     with Manager() as manager:
+
+        # Each thread will append playable words to this list
         global_playable = manager.list()
+
+        # Each thread will append words that require 1 swapped letter
         global_swaps = manager.list()
 
+        # Track the highest point scoring words to avoid validating irrelevant words
         max_points = manager.dict()
         max_points["max"] = 0
         max_points["swap_max"] = 0
 
         processes = []
 
+        # Number of words each thread will validate
         chunk_size = len(global_sequences) // num_threads
         
+        # Create a thread for each consecutive chunk_size words 
         for i in range(num_threads):
             search_seq = global_sequences[i * chunk_size: (i+1) * chunk_size if (i+1) * chunk_size < len(global_sequences) else -1]
             processes.append(Process(target = search_worker, args = (search_seq, global_playable, global_swaps, max_points) ))
@@ -281,7 +296,7 @@ if __name__ == '__main__':
         for p in processes: 
             p.start()
 
-        # Wait for all starting position to be evaluated
+        # Wait for all threads to finish evaluating words
         for p in processes:
             p.join()
 
@@ -290,10 +305,10 @@ if __name__ == '__main__':
         # Print playable words in sorted order
         print_words = copy.deepcopy(global_playable)
         print_words.sort(key=lambda tup: tup[1], reverse = True)
-        for word in print_words[0:15]:
+        for word in print_words[0:10]:
             print(f'{word[0]} - {word[1]}')
         
-        # Print best swaps
+        # Print best swaps in sorted order
         swap_words = copy.deepcopy(global_swaps)
         swap_words.sort(key=lambda tup: tup[1], reverse = True)
         for tup in swap_words[0:5]:
