@@ -227,6 +227,8 @@ if __name__ == '__main__':
                         new_mask[index[0]][index[1]] = False
                         processes.append(Process(target = mr_threads_worker, args=(new_mask, global_results, char + grid[index[0]][index[1]], index[0], index[1], max_points)))
                         num_threads_created+=1
+            print(f'Mr. Threads created: {num_threads_created} threads! Golly Gee!')
+
         else: 
             chars_per_thread = math.ceil(num_starting_chars / num_threads)
             char_tuples = []
@@ -243,7 +245,6 @@ if __name__ == '__main__':
                 processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
 
         # Start Processes
-        print(f'Num threads created: {num_threads_created}')
         start = time.time()
         for p in processes: 
             p.start()
