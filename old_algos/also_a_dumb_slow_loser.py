@@ -31,7 +31,7 @@ vocabs = {
     "large" : "common_20k",
     "full" : "scrabble_120k"
 }
-vocab_file = vocabs["medium"]
+vocab_file = vocabs["large"]
 if args.vocab_size and args.vocab_size in vocabs.keys(): vocab_file = vocabs[args.vocab_size]
     
 
