@@ -12,6 +12,7 @@ consonant_threshold = 3
 point_threshold = 2
 num_threads = 4
 puzzle = "abcdefghijklmnopqrstuvwxy"
+do_swap = False
 
 # Parse input 
 parser = argparse.ArgumentParser()
@@ -20,6 +21,8 @@ parser.add_argument("--threads", help="Number of threads to creat (Max 25)")
 parser.add_argument("--max_length", help="Maximum search depth. Sole determinant of performance")
 parser.add_argument("--puzzle", help="String of length 25 representing board")
 parser.add_argument("--vocab_size", help ="Size of vocab to search over: small, large, full")
+parser.add_argument("--do_swap", help ="Try all possible 1 swaps")
+
 
 
 args=parser.parse_args()
@@ -149,6 +152,7 @@ def contains_consonants(str):
 if (args.max_length):max_depth = int(args.max_length)
 if (args.threads): num_threads = int(args.threads)
 if (args.puzzle): puzzle = args.puzzle
+if (args.do_swap): do_swap = True
 
 # Validate input
 if len(puzzle) != 25:
@@ -201,9 +205,10 @@ def bin_search_valid_words(target):
         else:
             return midpoint
 
-def search_worker(sequences, global_valid, max_points):
+def search_worker(sequences, global_valid, global_swaps, max_points):
 
     found_words = []
+    swaps_found = []
     for seq in sequences:
         points = get_point_score(seq[0], seq[1])
         if (points >= max_points["max"] - point_threshold ) and len(seq[0]) > 2:
@@ -212,7 +217,38 @@ def search_worker(sequences, global_valid, max_points):
                 if points > max_points["max"]: 
                     print(f'New Max: {seq[0]} - {points} points')
                     max_points["max"] = points
+    
+        if do_swap:
+            # Proces swap possibilities
+            swap_permutations = get_swap_permutations(seq[0])
+            for perm in swap_permutations:
+                if bin_search_valid_words(perm["new_word"]):
+                    points = get_point_score(perm["new_word"], seq[1])
+                    if (points > max_points["swap_max"]) and points > max_points["max"]:
+                        # print(f'New Swap Possibility Max: {perm["old_word"]} --> {perm["new_word"]} (swap {perm["old_char"]} for {perm["new_char"]})')
+                        max_points["swap_max"] = points
+                        swaps_found.append((perm, points))
+
     global_valid+=found_words
+    global_swaps+=swaps_found
+
+def get_swap_permutations(str):
+    # Swap each letter in word with all 26 other letters
+
+    # What do I want to see in the console: Swap Posibility: glown --> clown (swap g for c)
+    new_words = []
+
+    for i in range(len(str)):
+        for char in char_values.keys():
+            word = str[:i] + char + str[i+1:]
+            new_words.append({
+                "new_word" : word,
+                "old_word" : str,
+                "old_char" : str[i],
+                "new_char" : char
+            })
+
+    return new_words
 
 if __name__ == '__main__':
 
@@ -230,8 +266,11 @@ if __name__ == '__main__':
     
     with Manager() as manager:
         global_playable = manager.list()
+        global_swaps = manager.list()
+
         max_points = manager.dict()
         max_points["max"] = 0
+        max_points["swap_max"] = 0
 
         processes = []
 
@@ -241,7 +280,7 @@ if __name__ == '__main__':
         
         for i in range(num_threads):
             search_seq = global_sequences[i * chunk_size: (i+1) * chunk_size if (i+1) * chunk_size < len(global_sequences) else -1]
-            processes.append(Process(target = search_worker, args = (search_seq, global_playable, max_points) ))
+            processes.append(Process(target = search_worker, args = (search_seq, global_playable, global_swaps, max_points) ))
 
         for p in processes: 
             p.start()
@@ -258,3 +297,10 @@ if __name__ == '__main__':
         for word in print_words[0:15]:
             print(f'{word[0]} - {word[1]}')
         
+        # Print best swaps
+        swap_words = copy.deepcopy(global_swaps)
+        swap_words.sort(key=lambda tup: tup[1], reverse = True)
+        for tup in swap_words[0:5]:
+            swap = tup[0]
+            points = tup[1]
+            print(f'Swap Possibility: {swap["old_word"]} --> {swap["new_word"]} - {points} points (swap {swap["old_char"]} for {swap["new_char"]})')
