@@ -4,7 +4,7 @@ import time
 from multiprocessing import Process, Manager
 
 
-max_depth = 5
+max_depth = 6
 vowel_thershold = 3
 consonant_threshold = 3 
 
@@ -120,7 +120,8 @@ def contains_consonants(str):
 
 
 # Create Grid as global var
-mat_str = sys.argv[1]
+max_depth = int(sys.argv[1])
+mat_str = sys.argv[2]
 grid, doubleLetter = map_str_to_2d_list(mat_str)
 
 
