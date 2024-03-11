@@ -6,11 +6,11 @@ import math
 from multiprocessing import Process, Manager
 
 
-max_depth = 10
+max_depth = 7
 vowel_thershold = 3
 consonant_threshold = 3 
-point_threshold = 2
-num_threads = 4
+point_threshold = None
+num_threads = 2
 puzzle = "abcdefghijklmnopqrstuvwxy"
 do_swap = False
 
@@ -22,8 +22,7 @@ parser.add_argument("--max_length", help="Maximum search depth. Sole determinant
 parser.add_argument("--puzzle", help="String of length 25 representing board")
 parser.add_argument("--vocab_size", help ="Size of vocab to search over: small, large, full")
 parser.add_argument("--do_swap", help ="Try all possible 1 swaps")
-
-
+parser.add_argument("--point_threshold", help = "We only will validate a word if it would be worth > (current max point - point_threshold). 0 will only evaluate strictly better words. Default off")
 
 args=parser.parse_args()
 
@@ -39,7 +38,6 @@ if args.vocab_size and args.vocab_size in vocabs.keys(): vocab_file = vocabs[arg
 
 # Get valid words
 valid_words = []
-# with open("scrabble_words.txt", "r") as f:
 with open(f'vocabs/sorted/{vocab_file}_sorted.txt', "r") as f:
     word = f.readline()
     while word: 
@@ -211,7 +209,7 @@ def search_worker(sequences, global_valid, global_swaps, max_points):
     swaps_found = []
     for seq in sequences:
         points = get_point_score(seq[0], seq[1])
-        if (points >= max_points["max"] - point_threshold ) and len(seq[0]) > 2:
+        if ((points >= max_points["max"] - point_threshold ) if point_threshold else True) and len(seq[0]) > 2:
             if bin_search_valid_words(seq[0]):
                 found_words.append((seq[0], points))
                 if points > max_points["max"]: 
@@ -275,8 +273,6 @@ if __name__ == '__main__':
         processes = []
 
         chunk_size = len(global_sequences) // num_threads
-
-        idx = 0 
         
         for i in range(num_threads):
             search_seq = global_sequences[i * chunk_size: (i+1) * chunk_size if (i+1) * chunk_size < len(global_sequences) else -1]
