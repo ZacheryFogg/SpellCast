@@ -127,6 +127,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--threads", help="Number of threads to creat (Max 25)")
 parser.add_argument("--max_length", help="Maximum search depth. Sole determinant of performance")
 parser.add_argument("--puzzle", help="String of length 25 representing board")
+parser.add_argument("--mr_threads", help = "Allows creation of up to 100 threads for Ben")
 
 args=parser.parse_args()
 
@@ -194,6 +195,11 @@ def multi_char_worker(char_coord_tuples, global_results, max_points):
         recursive_search(tuple[0], mask, found_words, tuple[1], tuple[2], max_points)
     global_results.append(found_words)
 
+def mr_threads_worker(mask, global_results, str, row, col, max_points):
+    found_words = []
+    recursive_search(str, mask, found_words, row, col, max_points)
+    global_results.append(found_words)
+
 if __name__ == '__main__':
 
     processes = []
@@ -201,24 +207,43 @@ if __name__ == '__main__':
     num_starting_chars = 25
 
     with Manager() as manager:
+
         global_results = manager.list()
         max_points = manager.dict() # make a dict so all threads can alter
         max_points["max"] = 0
 
-        chars_per_thread = math.ceil(num_starting_chars / num_threads)
-        char_tuples = []
+        # Creation of processes 
+        if args.mr_threads:
+            num_threads_created = 0
+            # Basic rationale is create a process for all 2 char starts
+            for row_idx, row in enumerate(grid):
+                for col_idx, char in enumerate(row):
 
-        for row_idx, row in enumerate(grid):
-            for col_idx, char in enumerate(row):
-                if len(char_tuples) == chars_per_thread:
-                    processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
-                    char_tuples = []
-                char_tuples.append((char, row_idx, col_idx))
+                    mask = copy.deepcopy(starting_bool_mask)
+                    mask[row_idx][col_idx] = False
+                    
+                    for index in get_valid_adjacent(mask, row_idx, col_idx):
+                        new_mask = copy.deepcopy(mask)
+                        new_mask[index[0]][index[1]] = False
+                        processes.append(Process(target = mr_threads_worker, args=(new_mask, global_results, char + grid[index[0]][index[1]], index[0], index[1], max_points)))
+                        num_threads_created+=1
+        else: 
+            chars_per_thread = math.ceil(num_starting_chars / num_threads)
+            char_tuples = []
 
-        # If char tuples not empty, create last weaker thread 
-        if len(char_tuples):
-            processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
+            for row_idx, row in enumerate(grid):
+                for col_idx, char in enumerate(row):
+                    if len(char_tuples) == chars_per_thread:
+                        processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
+                        char_tuples = []
+                    char_tuples.append((char, row_idx, col_idx))
+
+            # If char tuples not empty, create last weaker thread 
+            if len(char_tuples):
+                processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
+
         # Start Processes
+        print(f'Num threads created: {num_threads_created}')
         start = time.time()
         for p in processes: 
             p.start()
