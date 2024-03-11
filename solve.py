@@ -9,14 +9,14 @@ from multiprocessing import Process, Manager
 max_depth = 6
 vowel_thershold = 3
 consonant_threshold = 3 
+point_threshold = 2
 
 # Get valid words
 valid_words = []
-with open("scrabble_words.txt", "r") as f:
+# with open("scrabble_words.txt", "r") as f:
+with open("normal_valid_words.txt", "r") as f:
     word = f.readline()
-    i = 0
     while word: 
-        i+=1
         valid_words.append(word.strip('\n'))
         word = f.readline()
 
@@ -153,7 +153,7 @@ def recursive_search(str, mask, found_words, row, col, max_points):
     '''
 
     # If current word is a valid scrabble word, add to accumulated list, along with point score
-    if str in valid_words and len(str) > 2:
+    if (get_point_score(str, mask) >= max_points["max"] - point_threshold ) and (len(str) > 2 and str in valid_words):
         # if len(str) > 4: print(str, handler.get_point_score(str, mask))
         points = get_point_score(str, mask)
         found_words.append((str, points))
