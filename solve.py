@@ -1,6 +1,8 @@
 import sys 
 import copy
 import time
+import argparse
+import math
 from multiprocessing import Process, Manager
 
 
@@ -119,10 +121,28 @@ def contains_consonants(str):
     return any(char in consonants for char in str)
 
 
+# Parse input 
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--threads", help="Number of threads to creat (Max 25)")
+parser.add_argument("--max_length", help="Maximum search depth. Sole determinant of performance")
+parser.add_argument("--puzzle", help="String of length 25 representing board")
+
+args=parser.parse_args()
+
 # Create Grid as global var
-max_depth = int(sys.argv[1])
-mat_str = sys.argv[2]
+max_depth = int(args.max_length)
+num_threads = int(args.threads)
+mat_str = args.puzzle
+
+# Validate input
+if len(mat_str) != 25:
+    print(f'Error - Input string length is: {len(mat_str)}. It should be 25')
+    exit()
+
 grid, doubleLetter = map_str_to_2d_list(mat_str)
+starting_bool_mask = [[True for pos in range(len(row))] for row in grid]
+
 
 
 def recursive_search(str, mask, found_words, row, col, max_points):
@@ -163,37 +183,43 @@ def recursive_search(str, mask, found_words, row, col, max_points):
         
     return 
 
-def worker(char, mask, row, col, results, max_points):
-    ''' 
-    Worker for each thread to execute
+
+def multi_char_worker(char_coord_tuples, global_results, max_points):
+    '''
+    Worker that will process multiple starting characters 
     '''
     found_words = []
-    recursive_search(char, mask, found_words, row, col, max_points)
-    results.append(found_words) 
+    for tuple in char_coord_tuples:
+        mask = copy.deepcopy(starting_bool_mask)
+        recursive_search(tuple[0], mask, found_words, tuple[1], tuple[2], max_points)
+    global_results.append(found_words)
 
 if __name__ == '__main__':
 
-    starting_bool_mask = [[True for pos in range(len(row))] for row in grid]
-
     processes = []
 
+    num_starting_chars = 25
+
     with Manager() as manager:
-        results = manager.list()
+        global_results = manager.list()
         max_points = manager.dict() # make a dict so all threads can alter
         max_points["max"] = 0
 
-        # Create search processes, one for each starting character
+        chars_per_thread = math.ceil(num_starting_chars / num_threads)
+        char_tuples = []
+
         for row_idx, row in enumerate(grid):
-            for col, char in enumerate(row):
-                new_mask = copy.deepcopy(starting_bool_mask)
-                # Make starting letter invalid
-                new_mask[row_idx][col] = False
-                process = Process(target=worker, args=(char, new_mask, row_idx, col, results, max_points))
-                processes.append(process)
+            for col_idx, char in enumerate(row):
+                if len(char_tuples) == chars_per_thread:
+                    processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
+                    char_tuples = []
+                char_tuples.append((char, row_idx, col_idx))
 
-        start = time.time()
-
+        # If char tuples not empty, create last weaker thread 
+        if len(char_tuples):
+            processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
         # Start Processes
+        start = time.time()
         for p in processes: 
             p.start()
 
@@ -206,7 +232,7 @@ if __name__ == '__main__':
         # Compile results
         playable_words = []
 
-        for result in results:
+        for result in global_results:
             playable_words += result
 
     # Print playable words in sorted order
