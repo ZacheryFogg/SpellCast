@@ -6,12 +6,10 @@ import math
 from multiprocessing import Process, Manager
 
 
-max_depth = 10
+max_depth = 6
 vowel_thershold = 3
 consonant_threshold = 3 
 point_threshold = 2
-num_threads = 4
-puzzle = "abcdefghijklmnopqrstuvwxy"
 
 # Parse input 
 parser = argparse.ArgumentParser()
@@ -19,6 +17,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--threads", help="Number of threads to creat (Max 25)")
 parser.add_argument("--max_length", help="Maximum search depth. Sole determinant of performance")
 parser.add_argument("--puzzle", help="String of length 25 representing board")
+parser.add_argument("--mr_threads", help = "Allows creation of up to 100 threads for Ben")
 parser.add_argument("--vocab_size", help ="Size of vocab to search over: small, large, full")
 
 
@@ -30,14 +29,14 @@ vocabs = {
     "large" : "common_20k",
     "full" : "scrabble_120k"
 }
-vocab_file = vocabs["large"]
+vocab_file = vocabs["medium"]
 if args.vocab_size and args.vocab_size in vocabs.keys(): vocab_file = vocabs[args.vocab_size]
     
 
 # Get valid words
 valid_words = []
 # with open("scrabble_words.txt", "r") as f:
-with open(f'vocabs/sorted/{vocab_file}_sorted.txt', "r") as f:
+with open(f'vocabs/{vocab_file}.txt', "r") as f:
     word = f.readline()
     while word: 
         valid_words.append(word.strip('\n'))
@@ -125,14 +124,14 @@ def get_valid_adjacent(mask, row, col):
                         valid_adjacent.append((r,c))
     return valid_adjacent
 
-def get_point_score(str, contains_double_letter):
+def get_point_score(str, mask):
     '''
     Determine the point score of a word
     '''
     points = 0
     for char in str:
         points += char_values[char]
-    if contains_double_letter: points *=2
+    if doubleLetter != None and mask[doubleLetter[0]][doubleLetter[1]] == False: points *=2
     if len(str) > 5: points+=10
     return points
 
@@ -146,32 +145,42 @@ def contains_consonants(str):
 
 
 # Create Grid as global var
-if (args.max_length):max_depth = int(args.max_length)
-if (args.threads): num_threads = int(args.threads)
-if (args.puzzle): puzzle = args.puzzle
+max_depth = int(args.max_length)
+num_threads = int(args.threads)
+mat_str = args.puzzle
 
 # Validate input
-if len(puzzle) != 25:
-    print(f'Error - Input string length is: {len(puzzle)}. It should be 25')
+if len(mat_str) != 25:
+    print(f'Error - Input string length is: {len(mat_str)}. It should be 25')
     exit()
 
-grid, doubleLetter = map_str_to_2d_list(puzzle)
+grid, doubleLetter = map_str_to_2d_list(mat_str)
 starting_bool_mask = [[True for pos in range(len(row))] for row in grid]
 
 
-def recursive_search(str, mask, sequences, row, col):
+
+def recursive_search(str, mask, found_words, row, col, max_points):
     '''
     Starting with a string of 1 character, depth first search 
     all valid sequences in the grid up to a maximum sequence length
     '''
+
+    # If current word is a valid scrabble word, add to accumulated list, along with point score
+    if (get_point_score(str, mask) >= max_points["max"] - point_threshold ) and (len(str) > 2 and str in valid_words):
+        # if len(str) > 4: print(str, handler.get_point_score(str, mask))
+        points = get_point_score(str, mask)
+        found_words.append((str, points))
+        
+        if points > max_points["max"]: 
+            print(f'New Max: {str} - {points} points')
+            max_points["max"] = points
+
     # If new_depth exceeds max_depth, do not recurse any further
     if len(str) >= max_depth: return
 
     # Heuristic to restrict search to plausible words: If str is X long and had no vowels, it is probably not a plausbile word
     if (len(str) == vowel_thershold) and not contains_vowel(str): return
     if (len(str) == consonant_threshold) and not contains_consonants(str): return
-
-    sequences.append((str, mask[doubleLetter[0]][doubleLetter[1]] == False if doubleLetter != None else False))
 
     # Recursively call search with all new char combinations of adjacent chars
     for index in get_valid_adjacent(mask, row, col):
@@ -181,68 +190,75 @@ def recursive_search(str, mask, sequences, row, col):
         mask[row][col]= False
 
         # Call recursive search with new string and new_mask
-        recursive_search(str + grid[index[0]][index[1]], mask, sequences, index[0], index[1])
+        recursive_search(str + grid[index[0]][index[1]], mask, found_words, index[0], index[1], max_points)
 
         # Now that we are done exploring this sequence, this char becomes valid
         mask[index[0]][index[1]] = True
         
     return 
 
-def bin_search_valid_words(target):
-    start = 0
-    end = len(valid_words) - 1
-    while start <= end:
-        middle = (start + end)// 2
-        midpoint = valid_words[middle]
-        if midpoint > target:
-            end = middle - 1
-        elif midpoint < target:
-            start = middle + 1
-        else:
-            return midpoint
 
-def search_worker(sequences, global_valid, max_points):
-
+def multi_char_worker(char_coord_tuples, global_results, max_points):
+    '''
+    Worker that will process multiple starting characters 
+    '''
     found_words = []
-    for seq in sequences:
-        points = get_point_score(seq[0], seq[1])
-        if (points >= max_points["max"] - point_threshold ) and len(seq[0]) > 2:
-            if bin_search_valid_words(seq[0]):
-                found_words.append((seq[0], points))
-                if points > max_points["max"]: 
-                    print(f'New Max: {seq[0]} - {points} points')
-                    max_points["max"] = points
-    global_valid+=found_words
+    for tuple in char_coord_tuples:
+        mask = copy.deepcopy(starting_bool_mask)
+        recursive_search(tuple[0], mask, found_words, tuple[1], tuple[2], max_points)
+    global_results.append(found_words)
+
+def mr_threads_worker(mask, global_results, str, row, col, max_points):
+    found_words = []
+    recursive_search(str, mask, found_words, row, col, max_points)
+    global_results.append(found_words)
 
 if __name__ == '__main__':
 
-    start = time.time()
+    processes = []
 
-    # Obtain all possible sequences on baord 
-    global_sequences = []
+    num_starting_chars = 25
 
-    for row_idx, row in enumerate(grid):
-        for col_idx, char in enumerate(row):
-            mask = copy.deepcopy(starting_bool_mask)
-            mask[row_idx][col_idx] = False
-            recursive_search(char, mask, global_sequences, row_idx, col_idx)
-
-    
     with Manager() as manager:
-        global_playable = manager.list()
-        max_points = manager.dict()
+
+        global_results = manager.list()
+        max_points = manager.dict() # make a dict so all threads can alter
         max_points["max"] = 0
 
-        processes = []
+        # Creation of processes 
+        if args.mr_threads:
+            num_threads_created = 0
+            # Basic rationale is create a process for all 2 char starts
+            for row_idx, row in enumerate(grid):
+                for col_idx, char in enumerate(row):
 
-        chunk_size = len(global_sequences) // num_threads
+                    mask = copy.deepcopy(starting_bool_mask)
+                    mask[row_idx][col_idx] = False
+                    
+                    for index in get_valid_adjacent(mask, row_idx, col_idx):
+                        new_mask = copy.deepcopy(mask)
+                        new_mask[index[0]][index[1]] = False
+                        processes.append(Process(target = mr_threads_worker, args=(new_mask, global_results, char + grid[index[0]][index[1]], index[0], index[1], max_points)))
+                        num_threads_created+=1
+            print(f'Mr. Threads created: {num_threads_created} threads! Golly Gee!')
 
-        idx = 0 
-        
-        for i in range(num_threads):
-            search_seq = global_sequences[i * chunk_size: (i+1) * chunk_size if (i+1) * chunk_size < len(global_sequences) else -1]
-            processes.append(Process(target = search_worker, args = (search_seq, global_playable, max_points) ))
+        else: 
+            chars_per_thread = math.ceil(num_starting_chars / num_threads)
+            char_tuples = []
 
+            for row_idx, row in enumerate(grid):
+                for col_idx, char in enumerate(row):
+                    if len(char_tuples) == chars_per_thread:
+                        processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
+                        char_tuples = []
+                    char_tuples.append((char, row_idx, col_idx))
+
+            # If char tuples not empty, create last weaker thread 
+            if len(char_tuples):
+                processes.append(Process(target=multi_char_worker, args=(char_tuples, global_results, max_points)))
+
+        # Start Processes
+        start = time.time()
         for p in processes: 
             p.start()
 
@@ -251,10 +267,15 @@ if __name__ == '__main__':
             p.join()
 
         print(f'Elapsed time of: {time.time() - start}s for max depth: {max_depth}')
-
-        # Print playable words in sorted order
-        print_words = copy.deepcopy(global_playable)
-        print_words.sort(key=lambda tup: tup[1], reverse = True)
-        for word in print_words[0:15]:
-            print(f'{word[0]} - {word[1]}')
         
+        # Compile results
+        playable_words = []
+
+        for result in global_results:
+            playable_words += result
+
+    # Print playable words in sorted order
+    playable_words.sort(key=lambda tup: tup[1], reverse = True)
+    print_words = playable_words[0:15]
+    for word in print_words:
+        print(word)
