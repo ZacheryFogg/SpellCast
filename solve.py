@@ -6,11 +6,11 @@ import math
 from multiprocessing import Process, Manager
 
 
-max_depth = 10
+max_depth = 7
 vowel_thershold = 3
 consonant_threshold = 3 
 point_threshold = None
-num_threads = 4
+num_threads = 2
 puzzle = "abcdefghijklmnopqrstuvwxy"
 
 # Parse input 
@@ -235,8 +235,6 @@ if __name__ == '__main__':
         processes = []
 
         chunk_size = len(global_sequences) // num_threads
-
-        idx = 0 
         
         for i in range(num_threads):
             search_seq = global_sequences[i * chunk_size: (i+1) * chunk_size if (i+1) * chunk_size < len(global_sequences) else -1]

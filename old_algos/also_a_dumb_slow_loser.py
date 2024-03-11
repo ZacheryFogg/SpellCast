@@ -6,11 +6,11 @@ import math
 from multiprocessing import Process, Manager
 
 
-max_depth = 10
+max_depth = 8
 vowel_thershold = 3
 consonant_threshold = 3 
-point_threshold = 2
-num_threads = 4
+point_threshold = 5
+num_threads = 2
 puzzle = "abcdefghijklmnopqrstuvwxy"
 
 # Parse input 
