@@ -186,7 +186,7 @@ def recursive_search(str, mask, sequences, row, col, path):
         mask[row][col]= False
 
         # Call recursive search with new string and new_mask
-        recursive_search(str + grid[row][col], mask, sequences, row, col, f'{path} --> {(row, col)}')
+        recursive_search(str + grid[row][col], mask, sequences, row, col, f'{path} --> {(row + 1, col + 1)}')
 
         # Now that we are done exploring this sequence, this char becomes valid
         mask[row][col] = True
@@ -269,7 +269,7 @@ if __name__ == '__main__':
         for col_idx, char in enumerate(row):
             mask = copy.deepcopy(starting_bool_mask)
             mask[row_idx][col_idx] = False
-            recursive_search(char, mask, global_sequences, row_idx, col_idx, f'({row_idx},{col_idx})')
+            recursive_search(char, mask, global_sequences, row_idx, col_idx, f'({row_idx + 1},{col_idx + 1})')
 
     with Manager() as manager:
 
@@ -300,24 +300,58 @@ if __name__ == '__main__':
         # Wait for all threads to finish evaluating words
         for p in processes:
             p.join()
-        print("--------------------------")
+        print("---------------------------------------")
         print(f'Elapsed time of: {time.time() - start}s for max depth: {max_depth}')
-        print("--------------------------\n")
+        print("---------------------------------------\n")
 
         # Print playable words in sorted order
+
+        print(f'----'.ljust(12), end="")
+        print(f'------'.ljust(13),end="")
+        print(f'----')
+
+        print(f'Word'.ljust(12), end="")
+        print(f'Points'.ljust(13),end="")
+        print(f'Path')
+
+        print(f'----'.ljust(12), end="")
+        print(f'------'.ljust(13),end="")
+        print(f'----\n')
+
+
         print_words = copy.deepcopy(global_playable)
         print_words.sort(key=lambda tup: tup[1], reverse = True)
         for word in print_words[0:10]:
-            print(f'{word[0]} - {word[1]} points'.ljust(20), end="")
-            print(f'Path: {word[2]}')
+            print(f'{word[0]}'.ljust(14), end="")
+            print(f'{word[1]}'.ljust(11), end="")
+            print(f'{word[2]}')
 
-        print("\n--------------------------\n")
+        print("\n---------------------------------------")
         
         # Print best swaps in sorted order
-        swap_words = copy.deepcopy(global_swaps)
-        swap_words.sort(key=lambda tup: tup[1], reverse = True)
-        for tup in swap_words[0:5]:
-            swap = tup[0]
-            points = tup[1]
-            print(f'Swap Possibility: {swap["old_word"]} --> {swap["new_word"]} - {points} points (swap {swap["old_char"]} for {swap["new_char"]})'.ljust(65), end = "")
-            print(f'Path: {tup[2]}')
+        if do_swap:
+            print("Words that require a character swapped")
+            print("---------------------------------------\n")
+
+            print(f'----------'.ljust(15), end="")
+            print(f'------'.ljust(13),end="")
+            print(f'---------'.ljust(13), end="")
+            print(f'----')
+
+            print(f'Swap Words'.ljust(15), end="")
+            print(f'Points'.ljust(13),end="")
+            print(f'Char Swap'.ljust(13),end="")
+            print(f'Path')
+
+            print(f'----------'.ljust(15), end="")
+            print(f'------'.ljust(13),end="")
+            print(f'---------'.ljust(13), end="")
+            print(f'----\n')
+
+            swap_words = copy.deepcopy(global_swaps)
+            swap_words.sort(key=lambda tup: tup[1], reverse = True)
+            for tup in swap_words[0:5]:
+                swap = tup[0]
+                points = tup[1]
+                print(f'{swap["old_word"]} --> {swap["new_word"]} - {points} points (swap {swap["old_char"]} for {swap["new_char"]})'.ljust(55), end = "")
+                print(f'{tup[2]}')
