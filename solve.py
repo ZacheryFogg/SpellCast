@@ -320,4 +320,4 @@ if __name__ == '__main__':
             swap = tup[0]
             points = tup[1]
             print(f'Swap Possibility: {swap["old_word"]} --> {swap["new_word"]} - {points} points (swap {swap["old_char"]} for {swap["new_char"]})'.ljust(65), end = "")
-            print(f'Path: {word[2]}')
+            print(f'Path: {tup[2]}')
