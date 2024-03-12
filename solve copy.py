@@ -15,12 +15,6 @@ swap_point_threshold = 5
 num_threads = 2
 puzzle = "abcdefghijklmnopqrstuvwxy"
 do_swap = False
-vocabs = {
-    "small" : "common_8k",
-    "medium" : "common_15k",
-    "large" : "common_20k",
-    "full" : "scrabble_120k"
-}
 vocab_file = vocabs["large"]
 
 # Parse input 
@@ -34,6 +28,13 @@ parser.add_argument("--do_swap", help ="Try all possible 1 swaps")
 parser.add_argument("--point_threshold", help = "We only will validate a word if it would be worth > (current max point - point_threshold). 0 will only evaluate strictly better words. Default off")
 
 args=parser.parse_args()
+
+vocabs = {
+    "small" : "common_8k",
+    "medium" : "common_15k",
+    "large" : "common_20k",
+    "full" : "scrabble_120k"
+}
     
 # Map input args to global vars if provided
 if (args.max_length):max_depth = int(args.max_length)
@@ -47,9 +48,14 @@ if len(puzzle) != 25:
     print(f'Error - Input string length is: {len(puzzle)}. It should be 25')
     exit()
 
+# Create 2d python list that represents the puzzle
+grid, doubleLetter = map_str_to_2d_list(puzzle)
+
+# To track what letters we have already added to our word, we will use a boolean mask
+starting_bool_mask = [[True for pos in range(len(row))] for row in grid]
+
 # Get valid words
 valid_words = []
-
 with open(f'vocabs/sorted/{vocab_file}_sorted.txt', "r") as f:
     word = f.readline()
     while word: 
@@ -157,14 +163,7 @@ consonants = "bcdfghjklmnpqrtsvwxyz"
 def contains_consonants(str):
     return any(char in consonants for char in str)
 
-
-# Create 2d python list that represents the puzzle
-grid, doubleLetter = map_str_to_2d_list(puzzle)
-
-# To track what letters we have already added to our word, we will use a boolean mask
-starting_bool_mask = [[True for pos in range(len(row))] for row in grid]
-
-def recursive_search(str, mask, sequences, row, col, path):
+def recursive_search(str, mask, sequences, row, col):
     '''
     Starting with a string of 1 character, depth first search 
     all valid sequences in the grid up to a maximum sequence length
@@ -176,7 +175,7 @@ def recursive_search(str, mask, sequences, row, col, path):
     if (len(str) == vowel_thershold) and not contains_vowel(str): return
     if (len(str) == consonant_threshold) and not contains_consonants(str): return
 
-    sequences.append((str, mask[doubleLetter[0]][doubleLetter[1]] == False if doubleLetter != None else False, path))
+    sequences.append((str, mask[doubleLetter[0]][doubleLetter[1]] == False if doubleLetter != None else False))
 
     # Recursively call search with all new char combinations of adjacent chars
     for index in get_valid_adjacent(mask, row, col):
@@ -186,10 +185,10 @@ def recursive_search(str, mask, sequences, row, col, path):
         mask[row][col]= False
 
         # Call recursive search with new string and new_mask
-        recursive_search(str + grid[row][col], mask, sequences, row, col, f'{path} --> {(row, col)}')
+        recursive_search(str + grid[index[0]][index[1]], mask, sequences, index[0], index[1])
 
         # Now that we are done exploring this sequence, this char becomes valid
-        mask[row][col] = True
+        mask[index[0]][index[1]] = True
         
     return 
 
@@ -222,7 +221,7 @@ def search_worker(sequences, global_valid, global_swaps, max_points):
         # evaluating it, since search is costly
         if ((points >= max_points["max"] - point_threshold ) if point_threshold else True) and len(seq[0]) > 2:
             if bin_search_valid_words(seq[0]):
-                found_words.append((seq[0], points, seq[2]))
+                found_words.append((seq[0], points))
                 if points > max_points["max"]: 
                     print(f'New Max: {seq[0]} - {points} points')
                     max_points["max"] = points
@@ -235,7 +234,7 @@ def search_worker(sequences, global_valid, global_swaps, max_points):
                     points = get_point_score(perm["new_word"], seq[1])
                     if (points > max_points["swap_max"] - swap_point_threshold) and points > max_points["max"]:
                         max_points["swap_max"] = points
-                        swaps_found.append((perm, points, seq[2]))
+                        swaps_found.append((perm, points))
 
     # Append locally found words to global trackers
     global_valid+=found_words
@@ -258,7 +257,6 @@ def get_swap_permutations(str):
 
     return new_words
 
-
 if __name__ == '__main__':
 
     start = time.time()
@@ -269,7 +267,7 @@ if __name__ == '__main__':
         for col_idx, char in enumerate(row):
             mask = copy.deepcopy(starting_bool_mask)
             mask[row_idx][col_idx] = False
-            recursive_search(char, mask, global_sequences, row_idx, col_idx, f'({row_idx},{col_idx})')
+            recursive_search(char, mask, global_sequences, row_idx, col_idx)
 
     with Manager() as manager:
 
@@ -300,18 +298,14 @@ if __name__ == '__main__':
         # Wait for all threads to finish evaluating words
         for p in processes:
             p.join()
-        print("--------------------------")
+
         print(f'Elapsed time of: {time.time() - start}s for max depth: {max_depth}')
-        print("--------------------------\n")
 
         # Print playable words in sorted order
         print_words = copy.deepcopy(global_playable)
         print_words.sort(key=lambda tup: tup[1], reverse = True)
         for word in print_words[0:10]:
-            print(f'{word[0]} - {word[1]} points'.ljust(20), end="")
-            print(f'Path: {word[2]}')
-
-        print("\n--------------------------\n")
+            print(f'{word[0]} - {word[1]}')
         
         # Print best swaps in sorted order
         swap_words = copy.deepcopy(global_swaps)
@@ -319,5 +313,4 @@ if __name__ == '__main__':
         for tup in swap_words[0:5]:
             swap = tup[0]
             points = tup[1]
-            print(f'Swap Possibility: {swap["old_word"]} --> {swap["new_word"]} - {points} points (swap {swap["old_char"]} for {swap["new_char"]})'.ljust(65), end = "")
-            print(f'Path: {word[2]}')
+            print(f'Swap Possibility: {swap["old_word"]} --> {swap["new_word"]} - {points} points (swap {swap["old_char"]} for {swap["new_char"]})')
