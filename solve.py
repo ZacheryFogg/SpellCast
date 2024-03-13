@@ -305,6 +305,9 @@ if __name__ == '__main__':
         print("---------------------------------------\n")
 
         # Print playable words in sorted order
+        print("--------------------")
+        print("Top 10 Scoring Words")
+        print("--------------------\n")
 
         print(f'----'.ljust(12), end="")
         print(f'------'.ljust(13),end="")
@@ -333,25 +336,28 @@ if __name__ == '__main__':
             print("Words that require a character swapped")
             print("---------------------------------------\n")
 
-            print(f'----------'.ljust(15), end="")
-            print(f'------'.ljust(13),end="")
-            print(f'---------'.ljust(13), end="")
+            print(f'----------'.ljust(25), end="")
+            print(f'------'.ljust(8),end="")
+            print(f'---------'.ljust(20), end="")
             print(f'----')
 
-            print(f'Swap Words'.ljust(15), end="")
-            print(f'Points'.ljust(13),end="")
-            print(f'Char Swap'.ljust(13),end="")
+            print(f'Swap Words'.ljust(25), end="")
+            print(f'Points'.ljust(8),end="")
+            print(f'Char Swap'.ljust(20),end="")
             print(f'Path')
 
-            print(f'----------'.ljust(15), end="")
-            print(f'------'.ljust(13),end="")
-            print(f'---------'.ljust(13), end="")
+            print(f'----------'.ljust(25), end="")
+            print(f'------'.ljust(8),end="")
+            print(f'---------'.ljust(20), end="")
             print(f'----\n')
 
             swap_words = copy.deepcopy(global_swaps)
             swap_words.sort(key=lambda tup: tup[1], reverse = True)
-            for tup in swap_words[0:5]:
-                swap = tup[0]
-                points = tup[1]
-                print(f'{swap["old_word"]} --> {swap["new_word"]} - {points} points (swap {swap["old_char"]} for {swap["new_char"]})'.ljust(55), end = "")
+
+            for tup in swap_words[0:10]:
+                swap_dict = tup[0]
+
+                print(f'{swap_dict["old_word"]} --> {swap_dict["new_word"]}'.ljust(25), end = "")
+                print(f'{tup[1]}'.ljust(8), end="")
+                print(f'swap {swap_dict["old_char"]} for {swap_dict["new_char"]}'.ljust(20), end="")
                 print(f'{tup[2]}')
