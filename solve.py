@@ -300,6 +300,7 @@ if __name__ == '__main__':
         # Wait for all threads to finish evaluating words
         for p in processes:
             p.join()
+            
         print("---------------------------------------")
         print(f'Elapsed time of: {time.time() - start}s for max depth: {max_depth}')
         print("---------------------------------------\n")
