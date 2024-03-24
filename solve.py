@@ -5,16 +5,18 @@ import argparse
 import math
 from multiprocessing import Process, Manager
 
-# Global words
-long_word_bonus_threshold = 6
-max_depth = 7
-vowel_thershold = 3
+# Global vars
+long_word_bonus_threshold = 6 # Game awards +10 points if word length is >= 6 
+
+max_depth = 7 
+vowel_thershold = 3 # Heuristic to speed up search. If a word starts with 3 vowels or consonants, it is probably not a valid word, and we don't need to consider all the possible continutations
 consonant_threshold = 3 
 point_threshold = None
-swap_point_threshold = 5
+swap_point_threshold = 5 
 num_threads = 2
 puzzle = "abcdefghijklmnopqrstuvwxy"
 do_swap = False
+
 vocabs = {
     "small" : "common_8k",
     "medium" : "common_15k",
@@ -26,12 +28,12 @@ vocab_file = vocabs["large"]
 # Parse input 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("--threads", help="Number of threads to creat (Max 25)")
-parser.add_argument("--max_length", help="Maximum search depth. Sole determinant of performance")
-parser.add_argument("--puzzle", help="String of length 25 representing board")
-parser.add_argument("--vocab_size", help ="Size of vocab to search over: small, large, full")
-parser.add_argument("--do_swap", help ="Try all possible 1 swaps")
-parser.add_argument("--point_threshold", help = "We only will validate a word if it would be worth > (current max point - point_threshold). 0 will only evaluate strictly better words. Default off")
+parser.add_argument("--threads", help="Number of threads to run search in parallel with. No max, no min")
+parser.add_argument("--max_length", help="Maximum search depth for words. Huge determinant of performance")
+parser.add_argument("--puzzle", help="String of length 25 representing board. Capitalize the Double Word bonus if applicable")
+parser.add_argument("--vocab_size", help ="Size of vocab to search over: small, medium, large, full")
+parser.add_argument("--do_swap", help =" Should the program search for possible swap words. Greatly impacts processing time. --do_swap=1 will enable swap checking, any other value will not.")
+# parser.add_argument("--point_threshold", help = "We only will validate a word if it would be worth > (current max point - point_threshold). 0 will only evaluate strictly better words. Default off")
 
 args=parser.parse_args()
     
